@@ -6,6 +6,7 @@ import ClientContext from "./options/ClientContext";
 import DataSourceUpdates from "./data-sources/DataSourceUpdates";
 import { createStreamListeners } from "./data-sources/createStreamListeners";
 import { IEvalDetail } from "./evaluation/IEvalDetail";
+import { IPreparedEvalDetail, IPreparedExposure } from "./evaluation/IPreparedEvalDetail";
 import WebSocketDataSynchronizer from "./data-sync/WebSocketDataSynchronizer";
 import PollingDataSynchronizer from "./data-sync/PollingDataSynchronizer";
 import Requestor from "./data-sync/Requestor";
@@ -23,7 +24,7 @@ import { DefaultEventProcessor } from "./events/DefaultEventProcessor";
 import { IStore } from "./store/store";
 import { IOptions } from "./options/IOptions";
 import { IUser } from "./options/IUser";
-import { MetricEvent } from "./events/event";
+import { EvalEvent, MetricEvent } from "./events/event";
 import { DataSyncModeEnum } from "./data-sync";
 
 enum ClientState {
@@ -247,6 +248,35 @@ export class FbClientCore implements IFbClientCore {
     return Promise.resolve(this.evaluateCore(key, user, defaultValue, ValueConverters.string));
   }
 
+  prepareBoolVariationDetail(key: string, user: IUser, defaultValue: boolean): Promise<IPreparedEvalDetail<boolean>> {
+    return Promise.resolve(this.evaluateVariation(key, user, defaultValue, ValueConverters.bool, true));
+  }
+
+  prepareNumberVariationDetail(key: string, user: IUser, defaultValue: number): Promise<IPreparedEvalDetail<number>> {
+    return Promise.resolve(this.evaluateVariation(key, user, defaultValue, ValueConverters.number, true));
+  }
+
+  prepareStringVariationDetail(key: string, user: IUser, defaultValue: string): Promise<IPreparedEvalDetail<string>> {
+    return Promise.resolve(this.evaluateVariation(key, user, defaultValue, ValueConverters.string, true));
+  }
+
+  prepareJsonVariationDetail(key: string, user: IUser, defaultValue: unknown): Promise<IPreparedEvalDetail<unknown>> {
+    return Promise.resolve(this.evaluateVariation(key, user, defaultValue, ValueConverters.json, true));
+  }
+
+  recordPreparedExposure(exposure: IPreparedExposure): boolean {
+    return this.eventProcessor.record(new EvalEvent(
+      {
+        key: exposure.user.key,
+        name: exposure.user.name,
+        customizedProperties: exposure.user.customizedProperties?.map(property => ({ ...property }))
+      },
+      exposure.flagKey,
+      { ...exposure.variation },
+      exposure.sendToExperiment
+    ));
+  }
+
   getAllVariations(
     user: IUser,
   ): Promise<IEvalDetail<string>[]> {
@@ -298,6 +328,16 @@ export class FbClientCore implements IFbClientCore {
     defaultValue: TValue,
     typeConverter: (value: string) => IConvertResult<TValue>
   ): IEvalDetail<TValue> {
+    return this.evaluateVariation(flagKey, user, defaultValue, typeConverter, false);
+  }
+
+  private evaluateVariation<TValue>(
+    flagKey: string,
+    user: IUser,
+    defaultValue: TValue,
+    typeConverter: (value: string) => IConvertResult<TValue>,
+    prepareExposure: boolean
+  ): IPreparedEvalDetail<TValue> {
     if (!this.initialized()) {
       this.logger?.warn(
         'Variation called before FeatBit client initialization completed (did you wait for the' +
@@ -321,19 +361,34 @@ export class FbClientCore implements IFbClientCore {
 
     if (evalResult.kind === ReasonKinds.Error || evalResult.kind === ReasonKinds.FlagNotFound) {
       // error happened when evaluate flag, return default value
-      const error = new ClientError(evalResult.reason!);
+      const error = new ClientError(evalResult.reason ?? 'flag evaluation failed');
       this.onError(error);
 
       return {flagKey, kind: evalResult.kind, reason: evalResult.reason, value: defaultValue};
     }
 
-    // send event
-    this.eventProcessor.record(evalEvent);
+    if (!prepareExposure) this.eventProcessor.record(evalEvent);
 
-    const {isSucceeded, value} = typeConverter(evalResult.value!);
-    return isSucceeded
-      ? {flagKey, kind: evalResult.kind, reason: evalResult.reason, value}
-      : {flagKey, kind: ReasonKinds.WrongType, reason: 'type mismatch', value: defaultValue};
+    const {isSucceeded, value} = typeConverter(evalResult.value);
+    if (!isSucceeded)
+      return {flagKey, kind: ReasonKinds.WrongType, reason: 'type mismatch', value: defaultValue};
+
+    const detail: IPreparedEvalDetail<TValue> = {flagKey, kind: evalResult.kind, reason: evalResult.reason, value};
+    if (!prepareExposure || !evalEvent) return detail;
+
+    const properties = evalEvent.user.customizedProperties?.map(property => Object.freeze({ ...property }));
+    const exposure: IPreparedExposure = Object.freeze({
+      version: 1,
+      flagKey: evalEvent.flagKey,
+      user: Object.freeze({
+        key: evalEvent.user.key,
+        name: evalEvent.user.name,
+        customizedProperties: properties ? Object.freeze(properties) : undefined
+      }),
+      variation: Object.freeze({ ...evalEvent.variation }),
+      sendToExperiment: evalEvent.sendToExperiment
+    });
+    return { ...detail, exposure };
   }
 
   private dataSourceErrorHandler(e: any) {

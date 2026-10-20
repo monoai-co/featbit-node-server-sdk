@@ -72,6 +72,35 @@ const fbClient = new FbClientBuilder()
 })();
 ```
 
+## Prepare values and record consumption
+
+Use `prepareBoolVariationDetail`, `prepareNumberVariationDetail`,
+`prepareStringVariationDetail`, or `prepareJsonVariationDetail` when computing a
+value before it is consumed. These methods use the normal evaluator without
+queueing an exposure. A successful typed evaluation includes an immutable,
+JSON-serializable `exposure` receipt containing the selected variation and user.
+Not-ready, missing-flag, evaluation-error and wrong-type fallbacks omit the receipt.
+
+```typescript
+const prepared = await fbClient.prepareBoolVariationDetail(flagKey, user, false);
+// When the application consumes prepared.value:
+if (prepared.exposure) {
+  const queued = fbClient.recordPreparedExposure(prepared.exposure);
+}
+```
+
+`recordPreparedExposure` queues a native evaluation event using the original
+snapshot and the current consumption timestamp. It does not evaluate again or
+make a separate network request. It returns whether the normal event processor
+accepted the event; this does not confirm delivery. Normal batching, deduplication,
+disabled-event, queue-capacity and close behavior apply. Call it once per intended
+consumption; it does not deduplicate calls across flushes.
+
+Receipts contain user attributes and are trusted server data. If a receipt crosses
+a browser or mobile boundary, the application must authenticate, authorize and
+protect that receipt before submitting it to this server SDK. A receipt contains
+no SDK key and does not itself grant access to FeatBit.
+
 ## Examples
 - [Console App](./examples/console-app)
 

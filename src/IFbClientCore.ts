@@ -1,6 +1,7 @@
 import { IUser } from "./options/IUser";
 import { IEvalDetail } from "./evaluation/IEvalDetail";
 import { IConvertResult } from "./utils/ValueConverters";
+import { IPreparedEvalDetail, IPreparedExposure } from "./evaluation/IPreparedEvalDetail";
 
 /**
  * The FeatBit SDK client object.
@@ -11,6 +12,20 @@ import { IConvertResult } from "./utils/ValueConverters";
  *
  */
 export interface IFbClientCore {
+
+  /** Evaluates without recording an exposure. Fallbacks never include a receipt. */
+  prepareBoolVariationDetail(key: string, user: IUser, defaultValue: boolean): Promise<IPreparedEvalDetail<boolean>>;
+  prepareNumberVariationDetail(key: string, user: IUser, defaultValue: number): Promise<IPreparedEvalDetail<number>>;
+  prepareStringVariationDetail(key: string, user: IUser, defaultValue: string): Promise<IPreparedEvalDetail<string>>;
+  prepareJsonVariationDetail(key: string, user: IUser, defaultValue: unknown): Promise<IPreparedEvalDetail<unknown>>;
+
+  /**
+   * Queues the prepared snapshot using the consumption timestamp and normal event processor.
+   * Returns false when events are disabled, the queue is full, or the client has closed.
+   * Receipts are trusted server data: authenticate and validate any receipt crossing a client boundary.
+   * Each call records a consumption; normal event batching and deduplication still apply.
+   */
+  recordPreparedExposure(exposure: IPreparedExposure): boolean;
 
   /**
    * Indicates whether the client is ready to be used.
