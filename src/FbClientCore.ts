@@ -24,7 +24,7 @@ import { DefaultEventProcessor } from "./events/DefaultEventProcessor";
 import { IStore } from "./store/store";
 import { IOptions } from "./options/IOptions";
 import { IUser } from "./options/IUser";
-import { EvalEvent, MetricEvent } from "./events/event";
+import { EvalEvent, IdentifyEvent, MetricEvent } from "./events/event";
 import { DataSyncModeEnum } from "./data-sync";
 
 enum ClientState {
@@ -309,6 +309,16 @@ export class FbClientCore implements IFbClientCore {
     const metricEvent = new MetricEvent(user, eventName, this.platform.info.appType, metricValue ?? 1);
     this.eventProcessor.record(metricEvent);
     return;
+  }
+
+  identify(user: IUser): boolean {
+    const context = Context.fromUser(user);
+    if (!context.valid) {
+      this.onError(new ClientError(`${ context.message ?? 'User not valid' }; identify ignored.`));
+      return false;
+    }
+
+    return this.eventProcessor.record(new IdentifyEvent(context.user));
   }
 
   async flush(callback?: (res: boolean) => void): Promise<boolean> {

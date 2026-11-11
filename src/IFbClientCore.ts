@@ -282,6 +282,22 @@ export interface IFbClientCore {
   track(user: IUser, eventName: string, metricValue?: number | undefined): void
 
   /**
+   * Reports a user to FeatBit without evaluating a flag or recording a custom metric event, so the
+   * server can create or update the end-user record.
+   *
+   * The user is copied when this method is called. The event goes through the normal event processor,
+   * so batching, deduplication of identical events within a flush, and queue capacity apply.
+   *
+   * @param user
+   *  the user to report. The user must have a non-empty key.
+   *
+   * @returns true if the event was queued. Returns false, without throwing, when the user has no key,
+   *  the client is offline or closed, events are disabled, or the event queue is full. A true result
+   *  does not confirm delivery.
+   */
+  identify(user: IUser): boolean;
+
+  /**
    * Tells the client that all pending events (if any) should be delivered as soon as possible.
    *
    * @param callback
