@@ -46,6 +46,14 @@ export class PayloadEvent implements IEvent {
   };
 }
 
+function userPayload(user: IUser) {
+  return {
+    keyId: user.key,
+    name: user.name,
+    customizedProperties: user.customizedProperties
+  }
+}
+
 export class MetricEvent extends PayloadEvent {
   constructor(
     public user: IUser,
@@ -57,17 +65,9 @@ export class MetricEvent extends PayloadEvent {
     this.timestamp = new Date().getTime();
   }
 
-  private userPayload() {
-    return {
-      keyId: this.user.key,
-      name: this.user.name,
-      customizedProperties: this.user.customizedProperties
-    }
-  }
-
   toPayload(): any {
     return {
-      user: this.userPayload(),
+      user: userPayload(this.user),
       metrics: [{
         route: 'index/metric',
         timestamp: this.timestamp,
@@ -100,17 +100,9 @@ export class EvalEvent extends PayloadEvent {
     this.timestamp = new Date().getTime();
   }
 
-  private userPayload() {
-    return {
-      keyId: this.user.key,
-      name: this.user.name,
-      customizedProperties: this.user.customizedProperties
-    }
-  }
-
   toPayload(): any {
     return {
-      user: this.userPayload(),
+      user: userPayload(this.user),
       variations: [{
         featureFlagKey: this.flagKey,
         sendToExperiment: this.sendToExperiment,
@@ -128,5 +120,30 @@ export class EvalEvent extends PayloadEvent {
     }
 
     return JSON.stringify(hasObject);
+  }
+}
+
+export class IdentifyEvent extends PayloadEvent {
+  public readonly user: IUser;
+
+  constructor(user: IUser) {
+    super();
+    this.user = {
+      key: user.key,
+      name: user.name,
+      customizedProperties: user.customizedProperties?.map(property => ({...property}))
+    };
+  }
+
+  toPayload(): any {
+    return {
+      user: userPayload(this.user),
+      variations: [],
+      metrics: []
+    }
+  }
+
+  get hash(): string {
+    return JSON.stringify(this.toPayload());
   }
 }

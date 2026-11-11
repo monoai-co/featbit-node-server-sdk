@@ -4,5 +4,6 @@ export * from './EvalResult';
 export * from './evalRules';
 export * from './Evaluator';
 export * from './IEvalDetail';
+export * from './IPreparedEvalDetail';
 export * from './operator';
 export * from './ReasonKinds';

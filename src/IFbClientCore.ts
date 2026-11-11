@@ -1,6 +1,7 @@
 import { IUser } from "./options/IUser";
 import { IEvalDetail } from "./evaluation/IEvalDetail";
 import { IConvertResult } from "./utils/ValueConverters";
+import { IPreparedEvalDetail, IPreparedExposure } from "./evaluation/IPreparedEvalDetail";
 
 /**
  * The FeatBit SDK client object.
@@ -11,6 +12,20 @@ import { IConvertResult } from "./utils/ValueConverters";
  *
  */
 export interface IFbClientCore {
+
+  /** Evaluates without recording an exposure. Fallbacks never include a receipt. */
+  prepareBoolVariationDetail(key: string, user: IUser, defaultValue: boolean): Promise<IPreparedEvalDetail<boolean>>;
+  prepareNumberVariationDetail(key: string, user: IUser, defaultValue: number): Promise<IPreparedEvalDetail<number>>;
+  prepareStringVariationDetail(key: string, user: IUser, defaultValue: string): Promise<IPreparedEvalDetail<string>>;
+  prepareJsonVariationDetail(key: string, user: IUser, defaultValue: unknown): Promise<IPreparedEvalDetail<unknown>>;
+
+  /**
+   * Queues the prepared snapshot using the consumption timestamp and normal event processor.
+   * Returns false when events are disabled, the queue is full, or the client has closed.
+   * Receipts are trusted server data: authenticate and validate any receipt crossing a client boundary.
+   * Each call records a consumption; normal event batching and deduplication still apply.
+   */
+  recordPreparedExposure(exposure: IPreparedExposure): boolean;
 
   /**
    * Indicates whether the client is ready to be used.
@@ -265,6 +280,22 @@ export interface IFbClientCore {
    *  a numeric value used by the FeatBit experimentation feature in custom numeric metrics, the default value is 1 if not provided.
    */
   track(user: IUser, eventName: string, metricValue?: number | undefined): void
+
+  /**
+   * Reports a user to FeatBit without evaluating a flag or recording a custom metric event, so the
+   * server can create or update the end-user record.
+   *
+   * The user is copied when this method is called. The event goes through the normal event processor,
+   * so batching, deduplication of identical events within a flush, and queue capacity apply.
+   *
+   * @param user
+   *  the user to report. The user must have a non-empty key.
+   *
+   * @returns true if the event was queued. Returns false, without throwing, when the user has no key,
+   *  the client is offline or closed, events are disabled, or the event queue is full. A true result
+   *  does not confirm delivery.
+   */
+  identify(user: IUser): boolean;
 
   /**
    * Tells the client that all pending events (if any) should be delivered as soon as possible.

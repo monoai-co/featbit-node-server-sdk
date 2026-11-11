@@ -1,13 +1,14 @@
 import { createEvaluationServerMock } from "../../createEvaluationServerMock";
 import { WebSocketServer } from "ws";
 import { TestLogger } from "../../../src/integrations";
-import { FbClientBuilder, UserBuilder } from "../../../src";
+import { FbClientBuilder, IFbClient, UserBuilder } from "../../../src";
 
 // all tests would pass in this module, but we got some weired logs
 // so temporarily this test suite is skipped. To enable it, remove testPathIgnorePatterns in jest.config.js
 describe('given a FbClientNode', () => {
   let wss: WebSocketServer;
   let testLogger: TestLogger;
+  const clients: IFbClient[] = [];
 
   beforeEach(() => {
     testLogger = new TestLogger();
@@ -15,6 +16,10 @@ describe('given a FbClientNode', () => {
 
   beforeAll(async () => {
     wss = createEvaluationServerMock();
+  });
+
+  afterEach(async () => {
+    await Promise.all(clients.splice(0).map(client => client.close()));
   });
 
   afterAll(async () => {
@@ -29,6 +34,8 @@ describe('given a FbClientNode', () => {
       .logger(testLogger)
       .build();
 
+    clients.push(fbClient);
+
     await fbClient.waitForInitialization();
     expect(fbClient.initialized()).toBe(true);
     await fbClient.close();
@@ -42,6 +49,8 @@ describe('given a FbClientNode', () => {
       .eventsUri('http://localhost1:6100')
       .logger(testLogger)
       .build();
+
+    clients.push(fbClient);
 
     try {
       await fbClient.waitForInitialization();
@@ -58,6 +67,8 @@ describe('given a FbClientNode', () => {
       .eventsUri('http://localhost1:6100')
       .logger(testLogger)
       .build();
+
+    clients.push(fbClient);
 
     try {
       await fbClient.waitForInitialization();
@@ -78,6 +89,8 @@ describe('given a FbClientNode', () => {
       .eventsUri('http://localhost1:6100')
       .logger(testLogger)
       .build();
+
+    clients.push(fbClient);
 
     try {
       await fbClient.waitForInitialization();
@@ -100,6 +113,8 @@ describe('given a FbClientNode', () => {
       .eventsUri('http://localhost1:6100')
       .logger(testLogger)
       .build();
+
+    clients.push(fbClient);
 
     try {
       await fbClient.waitForInitialization();
